@@ -16,11 +16,76 @@ const PLANETS_FILENAME = "gtoc13_planets.csv"
 const ASTEROIDS_FILENAME = "gtoc13_asteroids.csv"
 const COMETS_FILENAME = "gtoc13_comets.csv"
 const PACKAGE_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
+const PLANETS_HEADER_FIELDS = [
+    "#Planet ID",
+    "Name",
+    "GM (km3/s2)",
+    "Radius (km)",
+    "Semi-Major Axis (km)",
+    "Eccentricity ()",
+    "Inclination (deg)",
+    "Longitude of the Ascending Node (deg)",
+    "Argument of Periapsis (deg)",
+    "Mean Anomaly at t=0 (deg)",
+    "Weight ()",
+]
+const ASTEROIDS_HEADER_FIELDS = [
+    "#Asteroid ID",
+    "Semi-Major Axis (km)",
+    "Eccentricity ()",
+    "Inclination (deg)",
+    "Longitude of the Ascending Node (deg)",
+    "Argument of Periapsis (deg)",
+    "Mean Anomaly at t=0",
+    "Weight ()",
+]
+const COMETS_HEADER_FIELDS = [
+    "# Comet ID",
+    "Semi-Major Axis (km)",
+    "Eccentricity ()",
+    "Inclination (deg)",
+    "Longitude of the Ascending Node (deg)",
+    "Argument of Periapsis (deg)",
+    "Mean Anomaly at t=0 (deg)",
+    "Weight ()",
+]
 
 package_path(parts...) = normpath(joinpath(PACKAGE_ROOT, parts...))
 
 strip_csv_field(field::AbstractString) = strip(replace(field, '\r' => ""))
-parse_csv_float(field::AbstractString) = parse(Float64, strip_csv_field(field))
+
+function parse_csv_float(field::AbstractString)
+    value = parse(Float64, strip_csv_field(field))
+    isfinite(value) || error("Encountered non-finite numeric value: $(repr(field))")
+    return value
+end
+
+function parse_csv_int(field::AbstractString)
+    value = parse(Int, strip_csv_field(field))
+    return value
+end
+
+normalized_header_fields(line::AbstractString) = strip_csv_field.(split(strip_csv_field(line), ','))
+
+function expected_header_fields(class::BodyClass)
+    class == PLANET && return PLANETS_HEADER_FIELDS
+    class == ASTEROID && return ASTEROIDS_HEADER_FIELDS
+    class == COMET && return COMETS_HEADER_FIELDS
+    error("Unsupported body class for CSV header validation: $(class)")
+end
+
+function validate_header(line::AbstractString, class::BodyClass, path::String)
+    fields = normalized_header_fields(line)
+    expected = expected_header_fields(class)
+    fields == expected || error("Unexpected header in $(path). Expected $(expected), got $(fields)")
+    return fields
+end
+
+function validate_unique_ids(bodies::Vector{Body}, label::String)
+    ids = [body.id for body in bodies]
+    length(ids) == length(unique(ids)) || error("Duplicate body IDs detected in $(label)")
+    return true
+end
 
 function default_body_name(body_id::Int, class::BodyClass)
     class == ASTEROID && return "Asteroid $(body_id)"
@@ -31,12 +96,12 @@ end
 function orbital_elements_from_csv(a_km::Float64, e::Float64, i_deg::Float64,
                                    Ω_deg::Float64, ω_deg::Float64, M0_deg::Float64)
     return OrbitalElements(
-        a_km * KM_TO_AU,
+        km_to_au(a_km),
         e,
-        i_deg * DEG2RAD,
-        Ω_deg * DEG2RAD,
-        ω_deg * DEG2RAD,
-        M0_deg * DEG2RAD,
+        deg_to_rad(i_deg),
+        deg_to_rad(Ω_deg),
+        deg_to_rad(ω_deg),
+        deg_to_rad(M0_deg),
         T_LAUNCH_JD,
     )
 end
@@ -52,7 +117,7 @@ end
 function parse_planet_row(fields::Vector{SubString{String}})
     length(fields) == 11 || error("Invalid planets row with $(length(fields)) columns")
 
-    body_id = parse(Int, strip_csv_field(fields[1]))
+    body_id = parse_csv_int(fields[1])
     name = String(strip_csv_field(fields[2]))
     gm_km3s2 = parse_csv_float(fields[3])
     radius_km = parse_csv_float(fields[4])
@@ -65,8 +130,13 @@ function parse_planet_row(fields::Vector{SubString{String}})
     csv_weight = parse_csv_float(fields[11])
 
     class = body_id == ID_YANDI ? COMET : PLANET
-    μ = class == PLANET ? gm_km3s2 * KM3S2_TO_AU3DAY2 : 0.0
-    R = class == PLANET ? radius_km * KM_TO_AU : 0.0
+    a_km > 0.0 || error("Semi-major axis must be positive for body $(body_id)")
+    μ = class == PLANET ? μ_km3s2_to_au3day2(gm_km3s2) : 0.0
+    R = class == PLANET ? km_to_au(radius_km) : 0.0
+    if class == PLANET
+        μ > 0.0 || error("Planet $(body_id) must have positive GM")
+        R > 0.0 || error("Planet $(body_id) must have positive radius")
+    end
 
     return Body(
         body_id,
@@ -82,7 +152,7 @@ end
 function parse_small_body_row(fields::Vector{SubString{String}}, class::BodyClass)
     length(fields) == 8 || error("Invalid small-body row with $(length(fields)) columns")
 
-    body_id = parse(Int, strip_csv_field(fields[1]))
+    body_id = parse_csv_int(fields[1])
     a_km = parse_csv_float(fields[2])
     e = parse_csv_float(fields[3])
     i_deg = parse_csv_float(fields[4])
@@ -90,6 +160,7 @@ function parse_small_body_row(fields::Vector{SubString{String}}, class::BodyClas
     ω_deg = parse_csv_float(fields[6])
     M0_deg = parse_csv_float(fields[7])
     csv_weight = parse_csv_float(fields[8])
+    a_km > 0.0 || error("Semi-major axis must be positive for body $(body_id)")
 
     return Body(
         body_id,
@@ -107,15 +178,19 @@ function load_body_file(path::String, class::BodyClass)
 
     lines = readlines(path)
     length(lines) >= 2 || error("Body CSV is empty: $path")
+    validate_header(lines[1], class, path)
 
     bodies = Body[]
-    for line in lines[2:end]
-        isempty(strip(line)) && continue
+    for offset in eachindex(lines[2:end])
+        line_idx = offset + 1
+        line = lines[line_idx]
+        isempty(strip_csv_field(line)) && error("Blank line found at $(path):$(line_idx)")
         fields = split(line, ',')
         body = class == PLANET ? parse_planet_row(fields) : parse_small_body_row(fields, class)
         push!(bodies, body)
     end
 
+    validate_unique_ids(bodies, path)
     sort!(bodies, by=body -> body.id)
     return bodies
 end
@@ -133,6 +208,7 @@ function load_all_bodies(data_dir::String=package_path("data", "raw"))
     # truly massive planets stay in the planets bucket.
     massive_planets = filter(body -> body.class == PLANET, planets)
     all_bodies = sort!(vcat(planets, asteroids, comets), by=body -> body.id)
+    validate_unique_ids(all_bodies, "combined body catalogue")
 
     return massive_planets, asteroids, comets, all_bodies
 end

@@ -23,7 +23,14 @@ using LinearAlgebra
 const A_CHAR_KM_S2 = 2.0 * SAIL_C_SI * SAIL_AREA / SAIL_MASS * 1e-3  # [km/s²]
 
 # Characteristic acceleration in AU/day²
-const A_CHAR_AU_DAY2 = A_CHAR_KM_S2 * DAY_S^2 / AU_KM  # [AU/day²]
+const A_CHAR_AU_DAY2 = kms2_to_auday2(A_CHAR_KM_S2)  # [AU/day²]
+
+sail_cone_angle_in_domain(α::Float64) = 0.0 ≤ α ≤ (π / 2.0)
+
+function require_sail_cone_angle_in_domain(α::Float64)
+    sail_cone_angle_in_domain(α) && return true
+    error("Sail cone angle α=$(α) rad is outside the allowed domain [0, π/2]")
+end
 
 """
 Compute sail acceleration vector [AU/day²] given:
@@ -31,6 +38,7 @@ Compute sail acceleration vector [AU/day²] given:
   u_n   : sail normal unit vector (must satisfy u_n · (-r̂) ≥ 0)
 """
 function sail_acceleration(r::SVector{3,Float64}, u_n::SVector{3,Float64})
+    require_distance_au(r; name="sail position")
     r_norm = norm(r)
     r_hat  = r / r_norm          # points away from Altaira
     u_r    = -r_hat              # points toward Altaira (from statement: û_r from SC to Altaira)
@@ -55,11 +63,16 @@ to inertial frame.
 """
 function sail_normal_from_angles(r::SVector{3,Float64}, v::SVector{3,Float64},
                                   α::Float64, δ::Float64)
+    require_sail_cone_angle_in_domain(α)
+    require_angle_radians(δ; name="clock angle", lower=0.0, upper=TWO_PI)
+    require_distance_au(r; name="sail frame position")
+    require_velocity_auday(v; name="sail frame velocity")
     r_norm = norm(r)
-    v_norm_cross = norm(cross(r, v))
+    h = cross(r, v)
+    norm(h) > 1e-15 || error("Cannot define sail frame from collinear position and velocity")
 
     r_hat = r / r_norm
-    h_hat = cross(r, v) / norm(cross(r, v))
+    h_hat = h / norm(h)
     t_hat = cross(h_hat, r_hat)
 
     # û_r (toward Altaira) = -r̂ in RTN

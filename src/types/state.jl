@@ -10,6 +10,13 @@ struct CartesianState
     t   :: Float64
     r   :: SVector{3, Float64}   # position [AU]
     v   :: SVector{3, Float64}   # velocity [AU/day]
+
+    function CartesianState(t::Float64, r::SVector{3, Float64}, v::SVector{3, Float64})
+        require_finite_scalar(t; name="state epoch")
+        require_distance_au(r; name="state position")
+        require_velocity_auday(v; name="state velocity")
+        new(t, r, v)
+    end
 end
 
 """
@@ -28,6 +35,12 @@ Sail configuration at an instant.
 struct SailAttitude
     α :: Float64
     δ :: Float64
+
+    function SailAttitude(α::Float64, δ::Float64)
+        require_sail_cone_angle_in_domain(α)
+        require_angle_radians(δ; name="clock angle", lower=0.0, upper=TWO_PI)
+        new(α, δ)
+    end
 end
 
 """

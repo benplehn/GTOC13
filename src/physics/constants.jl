@@ -35,10 +35,12 @@ const T_HORIZON_JD     = T_HORIZON_DAYS
 # --- Perihelion thresholds ---
 const R_DEEP_PERIHELION   = 0.01   # [AU] — one allowed passage this close
 const R_NORMAL_PERIHELION = 0.05   # [AU] — all other perihelion passages must be ≥ this
+const PERIHELION_CHECKER_TOL_AU = KM_TO_AU   # [AU] — 1 km checker tolerance
 
 # --- Flyby altitude constraints ---
 const FLYBY_ALT_MIN_RADII = 0.1    # [body radii]
 const FLYBY_ALT_MAX_RADII = 100.0  # [body radii]
+const FLYBY_POSITION_TOL_AU = KM_TO_AU       # [AU] — 1 km position-match tolerance
 
 # --- Same-body re-flyby minimum interval ---
 const REFLYBY_PERIOD_FRACTION = 1.0 / 3.0   # min interval = orbital_period / 3

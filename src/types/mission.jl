@@ -34,6 +34,9 @@ end
 Construct the initial resource state at mission start.
 """
 function MissionResources(t_launch::Float64, t_horizon::Float64)
+    require_finite_scalar(t_launch; name="mission launch epoch")
+    require_finite_scalar(t_horizon; name="mission horizon epoch")
+    t_horizon ≥ t_launch || error("Mission horizon must be greater than or equal to launch epoch")
     MissionResources(
         t_launch, t_horizon,
         false, 0, false,
@@ -45,7 +48,7 @@ end
 Return a new MissionResources after consuming the deep perihelion slot.
 """
 function consume_deep_perihelion(r::MissionResources)
-    @assert !r.deep_perihelion_used "Deep perihelion already consumed"
+    !r.deep_perihelion_used || error("Deep perihelion already consumed")
     MissionResources(
         r.t_launch, r.t_horizon,
         true, r.perihelion_count + 1, true,
@@ -82,10 +85,51 @@ end
 Return a new MissionResources after harvesting a small body.
 """
 function harvest_body(r::MissionResources, body_id::Int)
+    r.first_perihelion_done || error("Cannot score massless body before first perihelion")
+    is_massless(body_id) || error("Body $(body_id) is not a massless scoring target")
+    body_id ∉ r.bodies_harvested || error("Body $(body_id) has already been harvested")
+
     MissionResources(
         r.t_launch, r.t_horizon,
         r.deep_perihelion_used, r.perihelion_count, r.first_perihelion_done,
         copy(r.planets_visited),
         push!(copy(r.bodies_harvested), body_id)
     )
+end
+
+"""
+True if massless bodies may contribute score in the current resource state.
+"""
+massless_scoring_allowed(r::MissionResources) = r.first_perihelion_done
+
+"""
+True if a single event time lies inside the mission window.
+"""
+function event_within_mission_window(r::MissionResources, t::Float64)
+    return r.t_launch ≤ t ≤ r.t_horizon
+end
+
+"""
+Throw an explicit error if an event time lies outside the mission window.
+"""
+function require_within_mission_window(r::MissionResources, t::Float64)
+    event_within_mission_window(r, t) && return true
+    error("Event time $(t) is outside the mission window [$(r.t_launch), $(r.t_horizon)]")
+end
+
+"""
+True if every event in the sequence lies inside the mission window.
+"""
+function sequence_within_mission_window(r::MissionResources, events)
+    return all(ev -> event_within_mission_window(r, ev.t), events)
+end
+
+"""
+Throw an explicit error if any event lies outside the mission window.
+"""
+function require_sequence_within_mission_window(r::MissionResources, events)
+    for ev in events
+        require_within_mission_window(r, ev.t)
+    end
+    return true
 end

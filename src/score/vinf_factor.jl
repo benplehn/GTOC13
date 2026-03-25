@@ -23,7 +23,7 @@ end
 Convert V∞ from AU/day to km/s.
 """
 function vinf_auday_to_kms(v_inf_auday::Float64)
-    return v_inf_auday * AU_KM / DAY_S
+    return auday_to_kms(v_inf_auday)
 end
 
 """

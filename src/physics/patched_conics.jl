@@ -69,7 +69,37 @@ end
 """
 Check if a flyby altitude satisfies the statement constraints.
 """
-function flyby_altitude_feasible(r_p::Float64, R_body::Float64)
+function flyby_altitude_feasible(r_p::Float64, R_body::Float64;
+                                 tol::Float64=64.0 * eps(max(abs(r_p), abs(R_body), 1.0)))
     alt = flyby_altitude(r_p, R_body)
-    return FLYBY_ALT_MIN_RADII * R_body ≤ alt ≤ FLYBY_ALT_MAX_RADII * R_body
+    return FLYBY_ALT_MIN_RADII * R_body - tol ≤ alt ≤ FLYBY_ALT_MAX_RADII * R_body + tol
+end
+
+function massive_vinf_magnitude_conserved(v_inf_in::SVector{3,Float64},
+                                          v_inf_out::SVector{3,Float64};
+                                          tol::Float64=1e-12)
+    require_velocity_auday(v_inf_in; name="incoming massive V∞")
+    require_velocity_auday(v_inf_out; name="outgoing massive V∞")
+    return abs(norm(v_inf_in) - norm(v_inf_out)) ≤ tol
+end
+
+function massive_vinf_magnitude_conserved(v_sc_in::SVector{3,Float64},
+                                          v_sc_out::SVector{3,Float64},
+                                          body_v::SVector{3,Float64};
+                                          tol::Float64=1e-12)
+    return massive_vinf_magnitude_conserved(v_sc_in - body_v, v_sc_out - body_v; tol=tol)
+end
+
+function require_massive_vinf_magnitude_conserved(v_inf_in::SVector{3,Float64},
+                                                  v_inf_out::SVector{3,Float64};
+                                                  tol::Float64=1e-12)
+    massive_vinf_magnitude_conserved(v_inf_in, v_inf_out; tol=tol) && return true
+    error("Massive flyby must conserve V∞ magnitude")
+end
+
+function require_massive_vinf_magnitude_conserved(v_sc_in::SVector{3,Float64},
+                                                  v_sc_out::SVector{3,Float64},
+                                                  body_v::SVector{3,Float64};
+                                                  tol::Float64=1e-12)
+    return require_massive_vinf_magnitude_conserved(v_sc_in - body_v, v_sc_out - body_v; tol=tol)
 end
