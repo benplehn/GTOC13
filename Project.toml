@@ -1,0 +1,20 @@
+name = "GTOC13"
+uuid = "b3be64f9-60a1-44e8-abd7-63dde1a0aae4"
+authors = ["Benjamin Plehn"]
+version = "0.1.0"
+
+[deps]
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+
+[compat]
+JLD2 = "0.5"
+julia = "1.10"
+StaticArrays = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]

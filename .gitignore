@@ -1,0 +1,7 @@
+/data/processed/*.jld2
+/data/cache/**/*.jld2
+/results/runs/*
+/results/tables/*
+/results/plots/*
+/results/notebooks/*
+.DS_Store

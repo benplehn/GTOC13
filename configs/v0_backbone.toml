@@ -1,0 +1,20 @@
+[search]
+algorithm      = "beam"
+beam_width     = 20
+max_depth      = 12
+t_lookahead_days = 365.0
+use_dominance  = true
+use_local_solver = false   # V0: branching only, no feasibility check yet
+
+[bounds]
+version = "v0"   # crude admissible bound: exact + sum of all unvisited weights
+
+[mission]
+t0_min_years = 0.0
+t0_max_years = 200.0
+backbone_only = true   # no harvesting in V0
+
+[output]
+log_dir    = "results/runs"
+save_best  = true
+label      = "backbone_v0"

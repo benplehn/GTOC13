@@ -1,0 +1,16 @@
+[search]
+algorithm        = "beam"
+beam_width       = 50
+max_depth        = 15
+t_lookahead_days = 730.0
+use_dominance    = true
+use_local_solver = true
+
+[bounds]
+version = "v1"
+
+[mission]
+backbone_only = false
+
+[output]
+label = "beam_small"
